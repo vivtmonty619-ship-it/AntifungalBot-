@@ -7,7 +7,6 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 
 # ==================== CONFIG ====================
-
 PASS_PERCENTAGE = 60
 
 logging.basicConfig(
@@ -17,7 +16,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ==================== QUESTIONS DATABASE ====================
-
 QUESTIONS = [
     {
         "question": "Which of the following antifungal drugs is a polyene that binds to ergosterol?",
@@ -97,15 +95,15 @@ QUESTIONS = [
 ]
 
 assert len(QUESTIONS) == 15
+
+# ==================== HELPER FUNCTIONS ====================
 def get_random_questions() -> List[Dict[str, Any]]:
     questions_copy = QUESTIONS.copy()
     random.shuffle(questions_copy)
     return questions_copy
 
-
 def calculate_grade(score: int, total: int):
     percentage = (score / total) * 100
-
     if percentage >= 90:
         grade = "A"
     elif percentage >= 80:
@@ -116,14 +114,11 @@ def calculate_grade(score: int, total: int):
         grade = "D"
     else:
         grade = "F"
-
     passed = percentage >= PASS_PERCENTAGE
     return percentage, grade, passed
 
-
 def build_question_message(question_data, current_q, total_q):
     return f"Question {current_q}/{total_q}\n\n{question_data['question']}"
-
 
 def build_options_keyboard(q_index, question_data):
     keyboard = []
@@ -132,15 +127,12 @@ def build_options_keyboard(q_index, question_data):
         keyboard.append([InlineKeyboardButton(option, callback_data=callback_data)])
     return InlineKeyboardMarkup(keyboard)
 
-
 def build_restart_keyboard():
-    return InlineKeyboardMarkup(
-        [[InlineKeyboardButton("Restart Exam", callback_data="restart")]]
-)
+    return InlineKeyboardMarkup([[InlineKeyboardButton("Restart Exam", callback_data="restart")]])
+
+# ==================== HANDLERS ====================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
     user = update.effective_user
-
     context.user_data["questions"] = get_random_questions()
     context.user_data["current_question"] = 0
     context.user_data["score"] = 0
@@ -161,9 +153,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
-
 async def show_question(query, context):
-
     user_data = context.user_data
     current = user_data["current_question"]
     total = user_data["total"]
@@ -171,9 +161,7 @@ async def show_question(query, context):
     if current >= total:
         score = user_data["score"]
         percentage, grade, passed = calculate_grade(score, total)
-
         status = "PASSED ✅" if passed else "FAILED ❌"
-
         result_msg = (
             f"🎓 Exam Completed\n\n"
             f"Score: {score}/{total}\n"
@@ -181,34 +169,21 @@ async def show_question(query, context):
             f"Grade: {grade}\n"
             f"Status: {status}\n\n"
         )
-
         if passed:
             result_msg += "Excellent performance!"
         else:
             result_msg += "Review antifungal pharmacology and try again."
 
-        await query.edit_message_text(
-            result_msg,
-            reply_markup=build_restart_keyboard()
-        )
+        await query.edit_message_text(result_msg, reply_markup=build_restart_keyboard())
         return
 
     question_data = user_data["questions"][current]
-    question_text = build_question_message(
-        question_data,
-        current + 1,
-        total
-    )
+    question_text = build_question_message(question_data, current + 1, total)
+    await query.edit_message_text(question_text, reply_markup=build_options_keyboard(current, question_data))
 
-    await query.edit_message_text(
-        question_text,
-        reply_markup=build_options_keyboard(current, question_data)
-      )
-  async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-
     user_data = context.user_data
 
     if query.data == "restart":
@@ -221,7 +196,6 @@ async def show_question(query, context):
         return
 
     if query.data.startswith("answer_"):
-
         _, q_idx_str, opt_idx_str = query.data.split("_")
         q_index = int(q_idx_str)
         selected_idx = int(opt_idx_str)
@@ -246,26 +220,22 @@ async def show_question(query, context):
         await query.edit_message_text(feedback)
         await show_question(query, context)
 
-
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.error(f"Update {update} caused error {context.error}")
 
-
+# ==================== MAIN ====================
 def main():
-
     TOKEN = os.getenv("BOT_TOKEN")
     if not TOKEN:
         raise ValueError("No BOT_TOKEN environment variable set")
 
     application = Application.builder().token(TOKEN).build()
-
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(button_handler))
     application.add_error_handler(error_handler)
 
     logger.info("Bot started...")
     application.run_polling(allowed_updates=Update.ALL_TYPES)
-
 
 if __name__ == "__main__":
     main()
