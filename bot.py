@@ -203,7 +203,7 @@ async def show_question(query, context):
     await query.edit_message_text(
         question_text,
         reply_markup=build_options_keyboard(current, question_data)
-      )
+    )
   async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     query = update.callback_query
